@@ -55,6 +55,27 @@ const QUADTREE_CONFIG = {
         distanceFalloffPower: 1.5,      // How quickly opacity fades with distance (>1 = faster falloff)
         colorIntensityMin: 0.5,         // Minimum color intensity in dense areas (0-1)
         colorIntensityMax: 0.7,         // Maximum color intensity in dense areas (0-1)
+    },
+
+    // Particle emitter system
+    particles: {
+        enabled: true,                  // Enable/disable particle emitter
+        emissionRate: 2,                // Particles emitted per frame (can be fractional)
+        maxParticles: 50,               // Maximum number of active particles
+        lifetime: 120,                  // Particle lifetime in frames (60 = 1 second at 60fps)
+
+        // Emission properties
+        emissionSpeed: 2.0,             // Initial emission speed (pixels per frame)
+        emissionSpread: 360,            // Emission angle spread in degrees (360 = all directions)
+
+        // Orbital behavior
+        orbitalPull: 0.015,             // Strength of pull towards mouse (0-0.1)
+        orbitalVelocity: 0.05,          // Tangential velocity for orbiting (0-0.2)
+        damping: 0.98,                  // Velocity damping (0.9-1.0, lower = more drag)
+
+        // Influence on quadtree
+        influenceRadius: 80,            // How far each particle influences the grid (pixels)
+        influenceStrength: 0.6,         // Strength of particle influence (0-1, relative to main proximity)
     }
 };
 
@@ -66,6 +87,8 @@ class QuadtreeGrid {
         this.animatedCells = [];
         this.mousePos = { x: -1000, y: -1000 };
         this.elements = [];
+        this.particles = [];
+        this.particleAccumulator = 0;  // For fractional emission rates
 
         this.settings = CONFIG.gridSettings;
 
@@ -132,6 +155,87 @@ class QuadtreeGrid {
         }
     }
 
+    // Emit new particles from mouse position
+    emitParticles() {
+        if (!QUADTREE_CONFIG.particles.enabled) return;
+
+        const config = QUADTREE_CONFIG.particles;
+
+        // Use accumulator for fractional emission rates
+        this.particleAccumulator += config.emissionRate;
+        const particlesToEmit = Math.floor(this.particleAccumulator);
+        this.particleAccumulator -= particlesToEmit;
+
+        for (let i = 0; i < particlesToEmit; i++) {
+            if (this.particles.length >= config.maxParticles) break;
+
+            // Random emission angle
+            const angleSpread = config.emissionSpread * Math.PI / 180;
+            const angle = Math.random() * angleSpread - angleSpread / 2;
+
+            // Random speed variation
+            const speed = config.emissionSpeed * (0.7 + Math.random() * 0.6);
+
+            this.particles.push({
+                x: this.mousePos.x,
+                y: this.mousePos.y,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                age: 0,
+                lifetime: config.lifetime
+            });
+        }
+    }
+
+    // Update particle positions and physics
+    updateParticles() {
+        if (!QUADTREE_CONFIG.particles.enabled) {
+            this.particles = [];
+            return;
+        }
+
+        const config = QUADTREE_CONFIG.particles;
+
+        // Update existing particles
+        this.particles = this.particles.filter(particle => {
+            // Age the particle
+            particle.age++;
+            if (particle.age > particle.lifetime) return false;
+
+            // Calculate vector to mouse
+            const dx = this.mousePos.x - particle.x;
+            const dy = this.mousePos.y - particle.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (dist > 0) {
+                // Normalize direction
+                const ndx = dx / dist;
+                const ndy = dy / dist;
+
+                // Apply orbital pull (towards mouse)
+                particle.vx += ndx * config.orbitalPull;
+                particle.vy += ndy * config.orbitalPull;
+
+                // Apply tangential velocity for orbiting
+                // Perpendicular to direction towards mouse
+                const tangentX = -ndy;
+                const tangentY = ndx;
+                particle.vx += tangentX * config.orbitalVelocity;
+                particle.vy += tangentY * config.orbitalVelocity;
+            }
+
+            // Apply damping
+            particle.vx *= config.damping;
+            particle.vy *= config.damping;
+
+            // Update position
+            particle.x += particle.vx;
+            particle.y += particle.vy;
+
+            return true;
+        });
+    }
+
     generateGrid() {
         this.cells = [];
         const cols = Math.ceil(this.canvas.width / this.settings.baseGridSize);
@@ -170,6 +274,20 @@ class QuadtreeGrid {
         // Check proximity to mouse using shape-based distance
         const mouseShapeDist = this.calculateShapeDistance(centerX, centerY, this.mousePos.x, this.mousePos.y);
         minDistance = Math.min(minDistance, mouseShapeDist);
+
+        // Check proximity to particles (if enabled)
+        if (QUADTREE_CONFIG.particles.enabled && this.particles.length > 0) {
+            const particleConfig = QUADTREE_CONFIG.particles;
+            this.particles.forEach(particle => {
+                const particleDist = this.calculateShapeDistance(centerX, centerY, particle.x, particle.y);
+                // Scale particle influence by its strength and radius
+                const effectiveParticleDist = particleDist / particleConfig.influenceStrength;
+                // Only consider if within influence radius
+                if (particleDist < particleConfig.influenceRadius) {
+                    minDistance = Math.min(minDistance, effectiveParticleDist);
+                }
+            });
+        }
 
         // Add organic variance to proximity threshold to break up circular pattern
         // Use position-based pseudo-randomness for consistent but varied patterns
@@ -444,6 +562,8 @@ class QuadtreeGrid {
 
     animate() {
         this.findInteractiveElements();
+        this.updateParticles();
+        this.emitParticles();
         this.generateGrid();
         this.drawGrid();
         requestAnimationFrame(() => this.animate());
