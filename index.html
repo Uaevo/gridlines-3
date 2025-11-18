@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quadtree Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Quadtree Grid Canvas -->
+    <canvas id="gridCanvas"></canvas>
+
+    <!-- Main Content -->
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <h1 class="main-title" data-text="DASHBOARD">DASHBOARD</h1>
+            <div class="status-message" id="statusMessage">System Online</div>
+        </header>
+
+        <!-- Application Links -->
+        <main class="app-grid" id="appGrid">
+            <!-- Links will be dynamically generated from config.js -->
+        </main>
+
+        <!-- Footer -->
+        <footer>
+            <p>Powered by Quadtree Grid System</p>
+        </footer>
+    </div>
+
+    <!-- Scripts -->
+    <script src="config.js"></script>
+    <script src="quadtree.js"></script>
+</body>
+</html>

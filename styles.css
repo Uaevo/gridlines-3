@@ -1,0 +1,362 @@
+/* ====================================
+   RESET & BASE STYLES
+   ==================================== */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Courier New', monospace;
+    background: #000000;
+    color: #ffffff;
+    overflow-x: hidden;
+    min-height: 100vh;
+}
+
+/* ====================================
+   CANVAS BACKGROUND
+   ==================================== */
+
+#gridCanvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+}
+
+/* ====================================
+   CONTAINER
+   ==================================== */
+
+.container {
+    position: relative;
+    z-index: 1;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 40px 20px;
+    min-height: 100vh;
+}
+
+/* ====================================
+   HEADER
+   ==================================== */
+
+header {
+    text-align: center;
+    margin-bottom: 60px;
+    padding: 20px;
+}
+
+.main-title {
+    font-size: 4rem;
+    font-weight: bold;
+    letter-spacing: 0.5rem;
+    margin-bottom: 20px;
+    text-shadow:
+        0 0 10px #ffffff,
+        0 0 20px #ffffff,
+        0 0 30px #ffffff;
+    animation: titleGlow 3s ease-in-out infinite;
+}
+
+@keyframes titleGlow {
+    0%, 100% {
+        text-shadow:
+            0 0 10px #ffffff,
+            0 0 20px #ffffff,
+            0 0 30px #ffffff;
+    }
+    50% {
+        text-shadow:
+            0 0 20px #ffffff,
+            0 0 40px #00ffff,
+            0 0 60px #00ffff;
+    }
+}
+
+.status-message {
+    font-size: 1.2rem;
+    color: #00ff00;
+    text-transform: uppercase;
+    letter-spacing: 0.2rem;
+    padding: 10px 20px;
+    border: 2px solid #00ff00;
+    display: inline-block;
+    animation: statusPulse 2s ease-in-out infinite;
+}
+
+@keyframes statusPulse {
+    0%, 100% {
+        box-shadow: 0 0 5px #00ff00;
+    }
+    50% {
+        box-shadow: 0 0 20px #00ff00;
+    }
+}
+
+/* ====================================
+   APPLICATION GRID
+   ==================================== */
+
+.app-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 30px;
+    margin: 40px 0;
+}
+
+.app-link {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    background: rgba(0, 0, 0, 0.8);
+    border: 2px solid #ffffff;
+    text-decoration: none;
+    color: #ffffff;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    min-height: 200px;
+}
+
+.app-link:hover {
+    transform: translateY(-5px);
+    border-color: #00ffff;
+    box-shadow:
+        0 0 20px rgba(0, 255, 255, 0.5),
+        inset 0 0 20px rgba(0, 255, 255, 0.1);
+    background: rgba(0, 20, 20, 0.9);
+}
+
+.app-link::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(
+        45deg,
+        transparent 30%,
+        rgba(0, 255, 255, 0.1) 50%,
+        transparent 70%
+    );
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.app-link:hover::before {
+    opacity: 1;
+    animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+    0% {
+        transform: translateX(-100%);
+    }
+    100% {
+        transform: translateX(100%);
+    }
+}
+
+.app-icon {
+    font-size: 3rem;
+    margin-bottom: 15px;
+    filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.5));
+}
+
+.app-name {
+    font-size: 1.5rem;
+    font-weight: bold;
+    letter-spacing: 0.2rem;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    transition: all 0.3s ease;
+}
+
+.app-link:hover .app-name {
+    color: #00ffff;
+    text-shadow: 0 0 10px #00ffff;
+}
+
+.app-description {
+    font-size: 0.9rem;
+    color: #888888;
+    text-align: center;
+    letter-spacing: 0.1rem;
+}
+
+/* ====================================
+   FOOTER
+   ==================================== */
+
+footer {
+    text-align: center;
+    padding: 40px 20px;
+    color: #666666;
+    font-size: 0.9rem;
+    letter-spacing: 0.1rem;
+}
+
+/* ====================================
+   MOBILE RESPONSIVE
+   ==================================== */
+
+@media (max-width: 768px) {
+    .container {
+        padding: 20px 15px;
+    }
+
+    .main-title {
+        font-size: 2.5rem;
+        letter-spacing: 0.3rem;
+    }
+
+    .status-message {
+        font-size: 0.9rem;
+        letter-spacing: 0.1rem;
+        padding: 8px 15px;
+    }
+
+    .app-grid {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 20px;
+    }
+
+    .app-link {
+        padding: 30px 15px;
+        min-height: 180px;
+    }
+
+    .app-icon {
+        font-size: 2.5rem;
+    }
+
+    .app-name {
+        font-size: 1.1rem;
+        letter-spacing: 0.1rem;
+    }
+
+    .app-description {
+        font-size: 0.8rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .main-title {
+        font-size: 2rem;
+        letter-spacing: 0.2rem;
+    }
+
+    .status-message {
+        font-size: 0.8rem;
+        padding: 6px 12px;
+    }
+
+    .app-grid {
+        grid-template-columns: 1fr;
+        gap: 15px;
+    }
+
+    .app-link {
+        padding: 25px 15px;
+        min-height: 160px;
+    }
+
+    .app-icon {
+        font-size: 2rem;
+    }
+
+    .app-name {
+        font-size: 1rem;
+    }
+
+    .app-description {
+        font-size: 0.75rem;
+    }
+
+    footer {
+        font-size: 0.8rem;
+        padding: 30px 15px;
+    }
+}
+
+/* ====================================
+   TABLET LANDSCAPE
+   ==================================== */
+
+@media (min-width: 769px) and (max-width: 1024px) {
+    .app-grid {
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 25px;
+    }
+}
+
+/* ====================================
+   LOADING & ACCESSIBILITY
+   ==================================== */
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* Smooth scrolling */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Focus styles for accessibility */
+.app-link:focus {
+    outline: 3px solid #00ffff;
+    outline-offset: 5px;
+}
+
+/* ====================================
+   CUSTOM SCROLLBAR
+   ==================================== */
+
+::-webkit-scrollbar {
+    width: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: #000000;
+    border-left: 1px solid #333333;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #ffffff;
+    border: 2px solid #000000;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #00ffff;
+}
+
+/* ====================================
+   SELECTION
+   ==================================== */
+
+::selection {
+    background: #00ffff;
+    color: #000000;
+}
+
+::-moz-selection {
+    background: #00ffff;
+    color: #000000;
+}
