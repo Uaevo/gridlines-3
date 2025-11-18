@@ -173,6 +173,13 @@ header {
     filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.5));
 }
 
+.app-icon-img {
+    width: 3rem;
+    height: 3rem;
+    object-fit: contain;
+    filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.5));
+}
+
 .app-name {
     font-size: 1.5rem;
     font-weight: bold;
@@ -240,6 +247,11 @@ footer {
         font-size: 2.5rem;
     }
 
+    .app-icon-img {
+        width: 2.5rem;
+        height: 2.5rem;
+    }
+
     .app-name {
         font-size: 1.1rem;
         letter-spacing: 0.1rem;
@@ -273,6 +285,11 @@ footer {
 
     .app-icon {
         font-size: 2rem;
+    }
+
+    .app-icon-img {
+        width: 2rem;
+        height: 2rem;
     }
 
     .app-name {
