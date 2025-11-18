@@ -2,6 +2,41 @@
 // QUADTREE GRID SYSTEM
 // ====================================
 
+// ====================================
+// ANIMATION CONFIGURATION
+// Tweak these values to customize the quadtree animation behavior
+// ====================================
+const QUADTREE_CONFIG = {
+    // Subdivision behavior
+    subdivision: {
+        varianceStrength: 0.3,          // Organic variance in subdivision (0-1, higher = more irregular)
+        depthThresholdReduction: 0.2,   // How much proximity threshold reduces per depth level (0-1)
+        skipChanceBase: 0.2,            // Base probability of skipping subdivision (0-1)
+        skipChancePerDepth: 0.1,        // Additional skip chance per depth level (0-1)
+    },
+
+    // Cell rendering
+    rendering: {
+        depthMultiplierMin: 0.25,       // Minimum opacity multiplier for cells (0-1)
+        depthMultiplierMax: 0.35,       // Maximum opacity multiplier for cells (0-1)
+        lineOpacityMin: 0.3,            // Minimum grid line opacity (0-1)
+        lineOpacityMax: 0.4,            // Maximum grid line opacity (0-1)
+    },
+
+    // Animation & fade
+    animation: {
+        fadeRateBase: 0.015,            // Base fade rate for animated cells (0-0.1)
+        fadeRateMultiplier: 0.015,      // Additional fade rate based on cell size (0-0.1)
+        triggerProbability: 0.12,       // Chance to animate a cell each frame (0-1, 0.12 = 12%)
+        mouseRange: 250,                // Maximum distance from mouse to trigger animation (pixels)
+        densityWeightPower: 1.5,        // How much to favor smaller cells (>1 = more bias)
+        distanceWeightPower: 2,         // How much distance affects selection (>1 = favor closer cells)
+        distanceFalloffPower: 1.5,      // How quickly opacity fades with distance (>1 = faster falloff)
+        colorIntensityMin: 0.5,         // Minimum color intensity in dense areas (0-1)
+        colorIntensityMax: 0.7,         // Maximum color intensity in dense areas (0-1)
+    }
+};
+
 class QuadtreeGrid {
     constructor(canvas) {
         this.canvas = canvas;
@@ -117,8 +152,8 @@ class QuadtreeGrid {
 
         // Add organic variance to proximity threshold to break up circular pattern
         // Use position-based pseudo-randomness for consistent but varied patterns
-        const variance = (Math.sin(centerX * 0.01) * Math.cos(centerY * 0.01)) * 0.3;
-        const adjustedThreshold = this.settings.proximityThreshold * (1 - depth * 0.2) * (1 + variance);
+        const variance = (Math.sin(centerX * 0.01) * Math.cos(centerY * 0.01)) * QUADTREE_CONFIG.subdivision.varianceStrength;
+        const adjustedThreshold = this.settings.proximityThreshold * (1 - depth * QUADTREE_CONFIG.subdivision.depthThresholdReduction) * (1 + variance);
 
         // Determine if we should subdivide based on proximity
         const shouldSubdivide = minDistance < adjustedThreshold;
@@ -135,7 +170,7 @@ class QuadtreeGrid {
 
             // More aggressive random skipping for organic, asymmetrical patterns
             quarters.forEach(q => {
-                const skipChance = 0.2 + depth * 0.1; // Increases with depth
+                const skipChance = QUADTREE_CONFIG.subdivision.skipChanceBase + depth * QUADTREE_CONFIG.subdivision.skipChancePerDepth; // Increases with depth
                 if (Math.random() > skipChance) {
                     this.subdivideCellIfNeeded({
                         x: q.x,
@@ -175,7 +210,7 @@ class QuadtreeGrid {
 
             // Higher density (smaller cells) get more intense rendering
             const depthMultiplier = cell.depth !== undefined
-                ? 0.25 + (cell.depth / this.settings.maxDepth) * 0.35
+                ? QUADTREE_CONFIG.rendering.depthMultiplierMin + (cell.depth / this.settings.maxDepth) * QUADTREE_CONFIG.rendering.depthMultiplierMax
                 : 0.3;
 
             this.ctx.globalAlpha = cell.alpha * depthMultiplier;
@@ -191,7 +226,7 @@ class QuadtreeGrid {
 
         this.cells.forEach(cell => {
             // Vary line opacity based on depth
-            const alpha = 0.3 + (cell.depth / this.settings.maxDepth) * 0.4;
+            const alpha = QUADTREE_CONFIG.rendering.lineOpacityMin + (cell.depth / this.settings.maxDepth) * QUADTREE_CONFIG.rendering.lineOpacityMax;
             this.ctx.globalAlpha = alpha;
 
             this.ctx.strokeRect(cell.x, cell.y, cell.size, cell.size);
@@ -204,15 +239,15 @@ class QuadtreeGrid {
         // Remove faded cells with variable fade rate
         this.animatedCells = this.animatedCells.filter(cell => {
             // Smaller cells fade slower, creating lingering trails
-            const fadeRate = 0.015 + (cell.size / this.settings.baseGridSize) * 0.015;
+            const fadeRate = QUADTREE_CONFIG.animation.fadeRateBase + (cell.size / this.settings.baseGridSize) * QUADTREE_CONFIG.animation.fadeRateMultiplier;
             cell.alpha -= fadeRate;
             return cell.alpha > 0;
         });
 
         // Reduced frequency for less intense flickering
-        if (Math.random() < 0.12) { // 12% chance each frame (down from 30%)
+        if (Math.random() < QUADTREE_CONFIG.animation.triggerProbability) {
             // Extended range with falloff for tail effect
-            const maxRange = 250;
+            const maxRange = QUADTREE_CONFIG.animation.mouseRange;
 
             // Find cells within extended range
             const cellsWithDistance = this.cells
@@ -228,13 +263,13 @@ class QuadtreeGrid {
                 // Probability weighted by density (smaller cells) and distance
                 const weightedCells = cellsWithDistance.map(({ cell, dist }) => {
                     // Density weight: smaller cells (higher depth) have higher weight
-                    const densityWeight = Math.pow(1.5, cell.depth);
+                    const densityWeight = Math.pow(QUADTREE_CONFIG.animation.densityWeightPower, cell.depth);
 
                     // Distance falloff: closer = higher weight
                     const distanceWeight = 1 - (dist / maxRange);
 
                     // Combined weight with stronger bias towards smaller cells
-                    const weight = densityWeight * Math.pow(distanceWeight, 2);
+                    const weight = densityWeight * Math.pow(distanceWeight, QUADTREE_CONFIG.animation.distanceWeightPower);
 
                     return { cell, dist, weight };
                 });
@@ -259,10 +294,10 @@ class QuadtreeGrid {
                     const distanceFalloff = 1 - (selectedDist / maxRange);
 
                     // Smaller cells (denser areas) get more intense colors
-                    const densityMultiplier = 0.5 + (selectedCell.depth / this.settings.maxDepth) * 0.7;
+                    const densityMultiplier = QUADTREE_CONFIG.animation.colorIntensityMin + (selectedCell.depth / this.settings.maxDepth) * QUADTREE_CONFIG.animation.colorIntensityMax;
 
                     // Starting alpha with falloff
-                    const startAlpha = Math.pow(distanceFalloff, 1.5) * densityMultiplier;
+                    const startAlpha = Math.pow(distanceFalloff, QUADTREE_CONFIG.animation.distanceFalloffPower) * densityMultiplier;
 
                     // Color intensity also varies with density
                     const colorIndex = selectedCell.depth >= 2
