@@ -15,6 +15,27 @@ const QUADTREE_CONFIG = {
         skipChancePerDepth: 0.1,        // Additional skip chance per depth level (0-1)
     },
 
+    // Shape and gradient controls for refined regions
+    shape: {
+        // Shape type: 'circular', 'elliptical', 'rectangular', 'squircle'
+        type: 'circular',
+
+        // Elliptical shape parameters (only used if type is 'elliptical')
+        aspectRatio: 1.5,               // Width/height ratio (1.0 = circular, >1 = wider, <1 = taller)
+        rotation: 0,                    // Rotation in degrees (0-360)
+
+        // Rectangular/Squircle parameters (used for 'rectangular' and 'squircle')
+        cornerRadius: 0.3,              // How rounded the corners are (0-1, only for 'squircle')
+
+        // Gradient/falloff type: 'linear', 'quadratic', 'exponential', 'smooth', 'inverse'
+        gradient: 'smooth',
+
+        // Gradient parameters
+        gradientSteepness: 2.0,         // How quickly density falls off (>1 = steeper, <1 = gentler)
+        innerRadius: 0.3,               // Core region with max density (0-1, proportion of threshold)
+        outerRadius: 1.0,               // Edge of influence (0-2, proportion of threshold)
+    },
+
     // Cell rendering
     rendering: {
         depthMultiplierMin: 0.25,       // Minimum opacity multiplier for cells (0-1)
@@ -139,24 +160,27 @@ class QuadtreeGrid {
         const centerX = cell.x + cell.size / 2;
         const centerY = cell.y + cell.size / 2;
 
-        // Check proximity to elements
+        // Check proximity to elements using shape-based distance
         let minDistance = Infinity;
         this.elements.forEach(elem => {
-            const dist = this.distance(centerX, centerY, elem.x, elem.y);
-            minDistance = Math.min(minDistance, dist);
+            const shapeDist = this.calculateShapeDistance(centerX, centerY, elem.x, elem.y);
+            minDistance = Math.min(minDistance, shapeDist);
         });
 
-        // Check proximity to mouse
-        const mouseDistance = this.distance(centerX, centerY, this.mousePos.x, this.mousePos.y);
-        minDistance = Math.min(minDistance, mouseDistance);
+        // Check proximity to mouse using shape-based distance
+        const mouseShapeDist = this.calculateShapeDistance(centerX, centerY, this.mousePos.x, this.mousePos.y);
+        minDistance = Math.min(minDistance, mouseShapeDist);
 
         // Add organic variance to proximity threshold to break up circular pattern
         // Use position-based pseudo-randomness for consistent but varied patterns
         const variance = (Math.sin(centerX * 0.01) * Math.cos(centerY * 0.01)) * QUADTREE_CONFIG.subdivision.varianceStrength;
         const adjustedThreshold = this.settings.proximityThreshold * (1 - depth * QUADTREE_CONFIG.subdivision.depthThresholdReduction) * (1 + variance);
 
+        // Apply gradient falloff to the minimum distance
+        const effectiveDistance = this.applyGradientFalloff(minDistance, adjustedThreshold);
+
         // Determine if we should subdivide based on proximity
-        const shouldSubdivide = minDistance < adjustedThreshold;
+        const shouldSubdivide = effectiveDistance < adjustedThreshold;
 
         if (shouldSubdivide && depth < this.settings.maxDepth) {
             // Subdivide into 4 quadrants
@@ -194,6 +218,105 @@ class QuadtreeGrid {
 
     distance(x1, y1, x2, y2) {
         return Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+    }
+
+    // Calculate shape-based distance for different shape types
+    calculateShapeDistance(cellX, cellY, targetX, targetY) {
+        const dx = cellX - targetX;
+        const dy = cellY - targetY;
+        const shapeConfig = QUADTREE_CONFIG.shape;
+
+        switch (shapeConfig.type) {
+            case 'circular':
+                return Math.sqrt(dx * dx + dy * dy);
+
+            case 'elliptical': {
+                // Rotate point to align with ellipse axes
+                const angle = shapeConfig.rotation * Math.PI / 180;
+                const cos = Math.cos(angle);
+                const sin = Math.sin(angle);
+                const rotX = dx * cos - dy * sin;
+                const rotY = dx * sin + dy * cos;
+
+                // Scale by aspect ratio
+                const scaledX = rotX / shapeConfig.aspectRatio;
+                return Math.sqrt(scaledX * scaledX + rotY * rotY);
+            }
+
+            case 'rectangular': {
+                // Manhattan distance (taxicab metric)
+                return Math.max(Math.abs(dx), Math.abs(dy));
+            }
+
+            case 'squircle': {
+                // Smooth interpolation between circle and square
+                const r = shapeConfig.cornerRadius;
+                const circDist = Math.sqrt(dx * dx + dy * dy);
+                const rectDist = Math.max(Math.abs(dx), Math.abs(dy));
+                return circDist * r + rectDist * (1 - r);
+            }
+
+            default:
+                return Math.sqrt(dx * dx + dy * dy);
+        }
+    }
+
+    // Apply gradient falloff to distance
+    applyGradientFalloff(distance, threshold) {
+        const shapeConfig = QUADTREE_CONFIG.shape;
+
+        // Calculate inner and outer radius in absolute units
+        const innerRadius = threshold * shapeConfig.innerRadius;
+        const outerRadius = threshold * shapeConfig.outerRadius;
+
+        // If within inner radius, always subdivide (return 0 distance)
+        if (distance <= innerRadius) {
+            return 0;
+        }
+
+        // If beyond outer radius, never subdivide (return large distance)
+        if (distance >= outerRadius) {
+            return threshold * 2;
+        }
+
+        // Normalize distance to 0-1 range between inner and outer radius
+        const normalizedDist = (distance - innerRadius) / (outerRadius - innerRadius);
+
+        // Apply gradient function
+        let falloff;
+        switch (shapeConfig.gradient) {
+            case 'linear':
+                falloff = normalizedDist;
+                break;
+
+            case 'quadratic':
+                falloff = Math.pow(normalizedDist, shapeConfig.gradientSteepness);
+                break;
+
+            case 'exponential':
+                falloff = (Math.exp(normalizedDist * shapeConfig.gradientSteepness) - 1) /
+                         (Math.exp(shapeConfig.gradientSteepness) - 1);
+                break;
+
+            case 'smooth':
+                // Smoothstep function
+                const t = normalizedDist;
+                falloff = t * t * (3 - 2 * t);
+                // Apply steepness by compressing the curve
+                falloff = Math.pow(falloff, shapeConfig.gradientSteepness);
+                break;
+
+            case 'inverse':
+                // Inverse falloff (slower at start, faster at end)
+                falloff = 1 - Math.pow(1 - normalizedDist, shapeConfig.gradientSteepness);
+                break;
+
+            default:
+                falloff = normalizedDist;
+        }
+
+        // Map back to distance value
+        return innerRadius + falloff * (outerRadius - innerRadius);
     }
 
     drawGrid() {
