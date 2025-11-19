@@ -86,9 +86,15 @@ class QuadtreeGrid {
         this.cells = [];
         this.animatedCells = [];
         this.mousePos = { x: -1000, y: -1000 };
+        this.prevMousePos = { x: -1000, y: -1000 };
+        this.mouseVelocity = 0;
+        this.isMouseMoving = false;
+        this.movementDecay = 0;
         this.elements = [];
         this.particles = [];
         this.particleAccumulator = 0;  // For fractional emission rates
+        this.hoveredElement = null;
+        this.needsGridUpdate = true;
 
         this.settings = CONFIG.gridSettings;
 
@@ -115,15 +121,40 @@ class QuadtreeGrid {
     }
 
     handleMouseMove(e) {
+        this.prevMousePos = { ...this.mousePos };
         this.mousePos = { x: e.clientX, y: e.clientY };
+
+        // Calculate mouse velocity
+        const dx = this.mousePos.x - this.prevMousePos.x;
+        const dy = this.mousePos.y - this.prevMousePos.y;
+        this.mouseVelocity = Math.sqrt(dx * dx + dy * dy);
+
+        // Mark as moving if velocity is above threshold
+        if (this.mouseVelocity > 0.5) {
+            this.isMouseMoving = true;
+            this.movementDecay = 1.0;  // Reset decay
+            this.needsGridUpdate = true;
+        }
     }
 
     handleTouchMove(e) {
         if (e.touches.length > 0) {
+            this.prevMousePos = { ...this.mousePos };
             this.mousePos = {
                 x: e.touches[0].clientX,
                 y: e.touches[0].clientY
             };
+
+            // Calculate velocity for touch
+            const dx = this.mousePos.x - this.prevMousePos.x;
+            const dy = this.mousePos.y - this.prevMousePos.y;
+            this.mouseVelocity = Math.sqrt(dx * dx + dy * dy);
+
+            if (this.mouseVelocity > 0.5) {
+                this.isMouseMoving = true;
+                this.movementDecay = 1.0;
+                this.needsGridUpdate = true;
+            }
         }
     }
 
@@ -155,9 +186,39 @@ class QuadtreeGrid {
         }
     }
 
+    // Update movement state and decay
+    updateMovementState() {
+        // Decay movement over time
+        if (this.movementDecay > 0) {
+            this.movementDecay *= 0.95;  // Decay factor
+            if (this.movementDecay < 0.01) {
+                this.movementDecay = 0;
+                this.isMouseMoving = false;
+            }
+        }
+
+        // Check if mouse is over any element
+        let wasHovered = this.hoveredElement !== null;
+        this.hoveredElement = null;
+
+        this.elements.forEach(elem => {
+            const dx = this.mousePos.x - elem.x;
+            const dy = this.mousePos.y - elem.y;
+            if (Math.abs(dx) < elem.width / 2 && Math.abs(dy) < elem.height / 2) {
+                this.hoveredElement = elem;
+            }
+        });
+
+        // If hover state changed, regenerate grid
+        if ((this.hoveredElement !== null) !== wasHovered) {
+            this.needsGridUpdate = true;
+        }
+    }
+
     // Emit new particles from mouse position
     emitParticles() {
         if (!QUADTREE_CONFIG.particles.enabled) return;
+        if (!this.isMouseMoving) return;  // Only emit when moving
 
         const config = QUADTREE_CONFIG.particles;
 
@@ -485,8 +546,11 @@ class QuadtreeGrid {
             return cell.alpha > 0;
         });
 
-        // Reduced frequency for less intense flickering
-        if (Math.random() < QUADTREE_CONFIG.animation.triggerProbability) {
+        // Only animate when there's activity
+        const activityLevel = this.movementDecay * this.mouseVelocity;
+        const shouldAnimate = this.isMouseMoving && Math.random() < QUADTREE_CONFIG.animation.triggerProbability * activityLevel;
+
+        if (shouldAnimate) {
             // Extended range with falloff for tail effect
             const maxRange = QUADTREE_CONFIG.animation.mouseRange;
 
@@ -562,9 +626,16 @@ class QuadtreeGrid {
 
     animate() {
         this.findInteractiveElements();
+        this.updateMovementState();
         this.updateParticles();
         this.emitParticles();
-        this.generateGrid();
+
+        // Only regenerate grid when there's activity or it's needed
+        if (this.needsGridUpdate || this.isMouseMoving || this.particles.length > 0) {
+            this.generateGrid();
+            this.needsGridUpdate = false;
+        }
+
         this.drawGrid();
         requestAnimationFrame(() => this.animate());
     }
